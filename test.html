@@ -3,138 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAI Chatbot</title>
+    <title>Canvas LMS Chatbot</title>
     <style>
-        body {
+        .chat-container {
+            max-width: 500px;
+            margin: 20px auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f4f4f9;
         }
-        #chatbox {
-            width: 400px;
-            height: 500px;
-            border: 1px solid #ccc;
-            background-color: #fff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            padding: 10px;
+
+        .chat-header {
+            background-color: #0374B5;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
         }
-        #messages {
-            flex: 1;
+
+        .chat-messages {
+            height: 400px;
             overflow-y: auto;
-            padding: 10px;
-            border-bottom: 1px solid #ccc;
+            padding: 20px;
+            background-color: #f9f9f9;
         }
-        #inputArea {
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+
+        .user-message {
+            background-color: #DCF8C6;
+            margin-left: auto;
+        }
+
+        .bot-message {
+            background-color: white;
+            border: 1px solid #ddd;
+        }
+
+        .chat-input {
             display: flex;
-            gap: 10px;
-            padding: 10px;
+            padding: 15px;
+            background-color: white;
         }
-        #userInput {
+
+        #user-input {
             flex: 1;
             padding: 10px;
-            border: 1px solid #ccc;
+            border: 1px solid #ddd;
             border-radius: 4px;
+            margin-right: 10px;
         }
-        #sendButton {
+
+        #send-button {
             padding: 10px 20px;
-            background-color: #007bff;
-            color: #fff;
+            background-color: #0374B5;
+            color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
         }
-        #sendButton:hover {
-            background-color: #0056b3;
+
+        #send-button:hover {
+            background-color: #025683;
         }
-        .message {
-            margin-bottom: 10px;
-        }
-        .user {
-            color: #007bff;
-            font-weight: bold;
-        }
-        .bot {
-            color: #333;
+
+        .typing-indicator {
+            padding: 10px;
+            display: none;
+            color: #666;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
-    <div id="chatbox">
-        <div id="messages"></div>
-        <div id="inputArea">
-            <input type="text" id="userInput" placeholder="Type your message here...">
-            <button id="sendButton">Send</button>
+    <div class="chat-container">
+        <div class="chat-header">Course Assistant</div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="typing-indicator" id="typing-indicator">Assistant is typing...</div>
+        <div class="chat-input">
+            <input type="text" id="user-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
         </div>
     </div>
 
     <script>
-        const messagesDiv = document.getElementById('messages');
-        const userInput = document.getElementById('userInput');
-        const sendButton = document.getElementById('sendButton');
+        // Replace with your OpenAI API key
+        const OPENAI_API_KEY = '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';
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const typingIndicator = document.getElementById('typing-indicator');
 
-        // Replace with your OpenAI API key (not recommended for production)
-        const apiKey = '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';
-
-        // Function to add a message to the chatbox
-        function addMessage(role, content) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message', role);
-            messageElement.innerHTML = `<span class="${role}">${role === 'user' ? 'You' : 'Bot'}:</span> ${content}`;
-            messagesDiv.appendChild(messageElement);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to the latest message
+        // Add message to chat
+        function addMessage(message, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        // Function to send a message to OpenAI
-        async function sendMessage() {
-            const message = userInput.value.trim();
-            if (!message) return;
-
-            addMessage('user', message);
-            userInput.value = '';
-
+        // Send message to OpenAI API
+        async function sendToOpenAI(message) {
             try {
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`,
+                        'Authorization': `Bearer ${OPENAI_API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'gpt-3.5-turbo',
-                        messages: [{ role: 'user', content: message }],
-                    }),
+                        model: "gpt-3.5-turbo",
+                        messages: [{
+                            role: "system",
+                            content: "You are a helpful course assistant, ready to help students with their questions."
+                        }, {
+                            role: "user",
+                            content: message
+                        }],
+                        temperature: 0.7
+                    })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-
                 const data = await response.json();
-                console.log('API Response:', data); // Debugging
-
-                if (data.choices && data.choices.length > 0) {
-                    const botReply = data.choices[0].message.content;
-                    addMessage('bot', botReply);
-                } else {
-                    addMessage('bot', 'No response from the bot. Please try again.');
-                }
+                return data.choices[0].message.content;
             } catch (error) {
                 console.error('Error:', error);
-                addMessage('bot', 'An error occurred. Please try again.');
+                return 'Sorry, I encountered an error. Please try again.';
             }
         }
 
+        // Handle send button click
+        async function handleSend() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, true);
+            userInput.value = '';
+
+            // Show typing indicator
+            typingIndicator.style.display = 'block';
+
+            // Get and add bot response
+            const response = await sendToOpenAI(message);
+            typingIndicator.style.display = 'none';
+            addMessage(response, false);
+        }
+
         // Event listeners
-        sendButton.addEventListener('click', sendMessage);
+        sendButton.addEventListener('click', handleSend);
         userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter') handleSend();
         });
     </script>
 </body>
